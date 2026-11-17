@@ -150,11 +150,8 @@ fi
 # launcher and impeccable.cmd share one cache.
 exe=""
 [ "$os" = windows ] && exe=".exe"
-home_bin="${HOME:-/nonexistent}/.impeccable/bin/impeccable$exe"
-if [ -z "$probing" ] && [ -x "$home_bin" ] && probe_ok "$home_bin"; then
-  exec "$home_bin" "$@"
-fi
 # Version-pinned user cache, filled by the download below or by `impeccable update`.
+# Checked before unversioned home_bin and PATH so a SHA-256-verified binary wins.
 cache_root="${IMPECCABLE_HOME:-${HOME:-/nonexistent}/.impeccable}"
 cached="$cache_root/bin/$version/impeccable$exe"
 asset="impeccable-$os-$arch"
@@ -174,6 +171,10 @@ if [ -n "$version" ] && [ -x "$cached" ]; then
     exec "$cached" "$@"
   fi
   echo "impeccable: cannot verify the cached engine $cached against $manifest; not using it" >&2
+fi
+home_bin="${HOME:-/nonexistent}/.impeccable/bin/impeccable$exe"
+if [ -z "$probing" ] && [ -x "$home_bin" ] && probe_ok "$home_bin"; then
+  exec "$home_bin" "$@"
 fi
 if [ -z "$probing" ] && command -v impeccable >/dev/null 2>&1 && probe_ok impeccable; then
   exec impeccable "$@"
@@ -229,6 +230,12 @@ if [ -n "$probing" ]; then
 fi
 if [ -n "$version" ] && [ "$os" != unknown ] && [ "$arch" != unknown ]; then
   base="${IMPECCABLE_DOWNLOAD_BASE:-https://github.com/pbakaus/impeccable/releases/download}"
+  case "$base" in
+    https://*|http://127.0.0.1:*|http://127.0.0.1/*|http://127.0.0.1|http://localhost:*|http://localhost/*|http://localhost|http://\[::1\]:*|http://\[::1\]/*|http://\[::1\]) ;;
+    *)
+      echo "impeccable: refusing non-HTTPS IMPECCABLE_DOWNLOAD_BASE ($base)" >&2
+      exit 127 ;;
+  esac
   url="$base/engine-v$version/$asset"
   read_expected
   # Fail closed before any network traffic or cache write.

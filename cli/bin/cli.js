@@ -57,6 +57,11 @@ function fromPackage() {
 }
 async function download() {
   if (!VERSION) return null;
+  const parsedBase = new globalThis.URL(BASE);
+  const isLoopback = parsedBase.hostname === '127.0.0.1' || parsedBase.hostname === 'localhost' || parsedBase.hostname === '[::1]' || parsedBase.hostname === '::1';
+  if (parsedBase.protocol !== 'https:' && !(parsedBase.protocol === 'http:' && isLoopback)) {
+    throw new Error(`refusing non-HTTPS IMPECCABLE_DOWNLOAD_BASE (${BASE})`);
+  }
   // Fail closed, like the skill launcher and `impeccable install`: no digest
   // on record refuses the download before any request, and nothing is written
   // until the hash matches, so a refusal leaves the cache dir untouched.

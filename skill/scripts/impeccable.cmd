@@ -48,15 +48,6 @@ set "run=%bin%"
 goto run
 :no_sibling
 
-set "home_bin=%USERPROFILE%\.impeccable\bin\impeccable.exe"
-if not exist "%home_bin%" goto no_home_bin
-if defined IMPECCABLE_LAUNCHER_PROBE goto no_home_bin
-call :probe "%home_bin%"
-if not "%probe_ok%"=="1" goto no_home_bin
-set "run=%home_bin%"
-goto run
-:no_home_bin
-
 if not defined IMPECCABLE_HOME set "IMPECCABLE_HOME=%USERPROFILE%\.impeccable"
 set "cached=%IMPECCABLE_HOME%\bin\%version%\impeccable.exe"
 set "asset=impeccable-windows-%arch%.exe"
@@ -92,6 +83,15 @@ set "run=%cached%"
 goto run
 :no_cache
 
+set "home_bin=%USERPROFILE%\.impeccable\bin\impeccable.exe"
+if not exist "%home_bin%" goto no_home_bin
+if defined IMPECCABLE_LAUNCHER_PROBE goto no_home_bin
+call :probe "%home_bin%"
+if not "%probe_ok%"=="1" goto no_home_bin
+set "run=%home_bin%"
+goto run
+:no_home_bin
+
 if defined IMPECCABLE_LAUNCHER_PROBE goto download
 rem The first impeccable on PATH, resolved once so the probe and the run see
 rem the same file. A batch shim (npm writes impeccable.cmd) must run under
@@ -126,6 +126,19 @@ if not defined expected if not defined expected_x64 goto no_checksum
 where curl.exe >nul 2>nul
 if errorlevel 1 goto curl_missing
 if not defined IMPECCABLE_DOWNLOAD_BASE set "IMPECCABLE_DOWNLOAD_BASE=https://github.com/pbakaus/impeccable/releases/download"
+if /I "%IMPECCABLE_DOWNLOAD_BASE:~0,8%"=="https://" goto base_ok
+if /I "%IMPECCABLE_DOWNLOAD_BASE:~0,17%"=="http://127.0.0.1:" goto base_ok
+if /I "%IMPECCABLE_DOWNLOAD_BASE:~0,17%"=="http://127.0.0.1/" goto base_ok
+if /I "%IMPECCABLE_DOWNLOAD_BASE%"=="http://127.0.0.1" goto base_ok
+if /I "%IMPECCABLE_DOWNLOAD_BASE:~0,17%"=="http://localhost:" goto base_ok
+if /I "%IMPECCABLE_DOWNLOAD_BASE:~0,17%"=="http://localhost/" goto base_ok
+if /I "%IMPECCABLE_DOWNLOAD_BASE%"=="http://localhost" goto base_ok
+if /I "%IMPECCABLE_DOWNLOAD_BASE:~0,13%"=="http://[::1]:" goto base_ok
+if /I "%IMPECCABLE_DOWNLOAD_BASE:~0,13%"=="http://[::1]/" goto base_ok
+if /I "%IMPECCABLE_DOWNLOAD_BASE%"=="http://[::1]" goto base_ok
+echo impeccable: refusing non-HTTPS IMPECCABLE_DOWNLOAD_BASE (%IMPECCABLE_DOWNLOAD_BASE%) 1>&2
+exit /b 127
+:base_ok
 if exist "%IMPECCABLE_HOME%\bin\%version%\" goto cache_ready
 mkdir "%IMPECCABLE_HOME%\bin\%version%" >nul 2>nul
 if errorlevel 1 goto cache_directory_failed

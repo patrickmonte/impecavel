@@ -543,6 +543,24 @@ fn shutdown(shared: &Shared) {
     std::thread::sleep(Duration::from_millis(50));
 }
 
+fn is_loopback_authority(authority: &str) -> bool {
+    let authority = authority.trim();
+    if authority.is_empty() {
+        return false;
+    }
+    let authority = authority.rsplit('@').next().unwrap_or("");
+    let host = if authority.starts_with('[') {
+        match authority.find(']') {
+            Some(i) => &authority[..=i],
+            None => return false,
+        }
+    } else {
+        authority.split(':').next().unwrap_or("")
+    };
+    let host = host.to_ascii_lowercase();
+    host == "localhost" || host == "127.0.0.1" || host == "::1" || host == "[::1]"
+}
+
 fn is_loopback_origin(origin: &str) -> bool {
     if origin.is_empty() {
         return false;
@@ -556,17 +574,7 @@ fn is_loopback_origin(origin: &str) -> bool {
         return false;
     }
     let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
-    let authority = authority.rsplit('@').next().unwrap_or("");
-    let host = if authority.starts_with('[') {
-        match authority.find(']') {
-            Some(i) => &authority[..=i],
-            None => return false,
-        }
-    } else {
-        authority.split(':').next().unwrap_or("")
-    };
-    let host = host.to_ascii_lowercase();
-    host == "localhost" || host == "127.0.0.1" || host == "::1" || host == "[::1]"
+    is_loopback_authority(authority)
 }
 
 /// Routes that give their turnstile ticket up before touching server state.
@@ -633,6 +641,18 @@ fn handle_connection(shared: Shared, mut stream: TcpStream, mut ticket: Ticket) 
         return;
     };
     let _ = stream.set_read_timeout(None);
+    // Reject non-loopback Host headers to prevent DNS rebinding against the local server.
+    if let Some(host) = req.header("host") {
+        if !is_loopback_authority(host) {
+            ticket.release();
+            respond(
+                &mut stream,
+                &[],
+                text_res(403, Some("text/plain"), "Forbidden"),
+            );
+            return;
+        }
+    }
     // Reading and parsing ran in parallel with other connections; from here
     // on, routes that touch server state run in arrival order. Static asset
     // and read-only-file routes do not need a turn and give theirs up now.
